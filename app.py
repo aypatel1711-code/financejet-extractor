@@ -16,6 +16,7 @@ app.add_middleware(
 
 app = FastAPI()
 
+
 class UrlInput(BaseModel):
     url: str
 
@@ -25,8 +26,8 @@ with open("Readability.js", "r", encoding="utf-8") as f:
 
 
 @app.post("/extract")
-async def extract_article(data: UrlInput):
-    url = data.url
+async def extract(payload: ExtractRequest):
+
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
