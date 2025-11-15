@@ -7,6 +7,7 @@ import os
 
 app = FastAPI()
 
+# CORS MUST BE ADDED AFTER app IS CREATED
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,6 +19,7 @@ app.add_middleware(
 class ExtractRequest(BaseModel):
     url: str
 
+# Load Readability script
 with open("Readability.js", "r", encoding="utf-8") as f:
     READABILITY_JS = f.read()
 
@@ -38,7 +40,7 @@ async def extract(payload: ExtractRequest):
             await browser.close()
             return {"error": "Failed to load page"}
 
-        # Inject readability
+        # Inject Readability.js
         await page.add_script_tag(content=READABILITY_JS)
 
         article_text = await page.evaluate("""
@@ -58,7 +60,6 @@ async def extract(payload: ExtractRequest):
             return {"error": "Could not extract text"}
 
         return {"text": article_text}
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
