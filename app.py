@@ -3,15 +3,10 @@ from pydantic import BaseModel
 from playwright.async_api import async_playwright
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
-# ---------------------------
-# Create FastAPI app first
-# ---------------------------
 app = FastAPI()
 
-# ---------------------------
-# Enable CORS correctly
-# ---------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,24 +15,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------------------
-# Model for POST body
-# ---------------------------
 class ExtractRequest(BaseModel):
     url: str
 
-# ---------------------------
-# Load Readability.js
-# ---------------------------
 with open("Readability.js", "r", encoding="utf-8") as f:
     READABILITY_JS = f.read()
 
-# ---------------------------
-# Extract endpoint
-# ---------------------------
 @app.post("/extract")
 async def extract(payload: ExtractRequest):
-
     url = payload.url
 
     async with async_playwright() as pw:
@@ -74,8 +59,7 @@ async def extract(payload: ExtractRequest):
 
         return {"text": article_text}
 
-# ---------------------------
-# Run locally
-# ---------------------------
+
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port)
