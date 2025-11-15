@@ -68,3 +68,14 @@ async def extract(payload: ExtractRequest):
         """)
 
         await browser.close()
+
+        if not article_text:
+            return {"error": "Could not extract text"}
+
+        return {"text": article_text}
+
+# ---------------------------
+# Run locally
+# ---------------------------
+if __name__ == "__main__":
+    uvicorn.run("app:app", host="0.0.0.0", port=10000)
