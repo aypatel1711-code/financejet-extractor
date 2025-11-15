@@ -1,5 +1,5 @@
 fastapi
 uvicorn
 playwright
-bs4
-requests
+readability-lxml
+lxml
