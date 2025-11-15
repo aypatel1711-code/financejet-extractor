@@ -1,35 +1,36 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from playwright.async_api import async_playwright
-import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
+from playwright.async_api import async_playwright
+from readability import Document
+import uvicorn
 import os
 
 app = FastAPI()
 
-# CORS
+# ----------------------------
+# CORS (VERY IMPORTANT)
+# ----------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
-
-# 👇 ADD THIS ROOT ROUTE
-@app.get("/")
-async def root():
-    return {"message": "FinanceJet Extractor is running"}
 
 class ExtractRequest(BaseModel):
     url: str
 
-with open("Readability.js", "r", encoding="utf-8") as f:
-    READABILITY_JS = f.read()
+
+@app.get("/")
+def home():
+    return {"message": "Extractor is running."}
+
 
 @app.post("/extract")
 async def extract(payload: ExtractRequest):
-    url = payload.url
+    url = payload.url.strip()
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
@@ -39,31 +40,34 @@ async def extract(payload: ExtractRequest):
         page = await browser.new_page()
 
         try:
-            await page.goto(url, timeout=45000, wait_until="networkidle")
-        except:
+            await page.goto(url, timeout=55000, wait_until="domcontentloaded")
+        except Exception as e:
             await browser.close()
-            return {"error": "Failed to load page"}
+            return {"error": f"Failed to load page: {e}"}
 
-        await page.add_script_tag(content=READABILITY_JS)
-
-        article_text = await page.evaluate("""
-            () => {
-                try {
-                    let article = new Readability(document).parse();
-                    return article ? article.textContent : null;
-                } catch (e) {
-                    return null;
-                }
-            }
-        """)
+        # 🔥 Get raw HTML safely — NO script injection
+        try:
+            html = await page.content()
+        except Exception as e:
+            await browser.close()
+            return {"error": f"Failed to read HTML: {e}"}
 
         await browser.close()
 
-        if not article_text:
-            return {"error": "Could not extract text"}
+    # 🔥 Use Python Readability — immune to CSP
+    try:
+        doc = Document(html)
+        text = doc.text()
+    except Exception as e:
+        return {"error": f"Readability failed: {e}"}
 
-        return {"text": article_text}
+    if not text or len(text.strip()) < 50:
+        return {"error": "Could not extract article text"}
+
+    return {"text": text}
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("app:app", host="0.0.0.0", port=port)
+
