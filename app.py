@@ -4,6 +4,14 @@ from playwright.async_api import async_playwright
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
+# ---------------------------
+# Create FastAPI app first
+# ---------------------------
+app = FastAPI()
+
+# ---------------------------
+# Enable CORS correctly
+# ---------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -12,22 +20,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-
-app = FastAPI()
-
-
-class UrlInput(BaseModel):
+# ---------------------------
+# Model for POST body
+# ---------------------------
+class ExtractRequest(BaseModel):
     url: str
 
-# Load Readability.js into memory
+# ---------------------------
+# Load Readability.js
+# ---------------------------
 with open("Readability.js", "r", encoding="utf-8") as f:
     READABILITY_JS = f.read()
 
-
+# ---------------------------
+# Extract endpoint
+# ---------------------------
 @app.post("/extract")
 async def extract(payload: ExtractRequest):
 
+    url = payload.url
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
@@ -42,7 +53,7 @@ async def extract(payload: ExtractRequest):
             await browser.close()
             return {"error": "Failed to load page"}
 
-        # Inject readability script
+        # Inject readability
         await page.add_script_tag(content=READABILITY_JS)
 
         article_text = await page.evaluate("""
@@ -57,12 +68,3 @@ async def extract(payload: ExtractRequest):
         """)
 
         await browser.close()
-
-        if not article_text:
-            return {"error": "Could not extract text"}
-
-        return {"text": article_text}
-
-
-if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=10000)
