@@ -14,10 +14,9 @@ WORKDIR /app
 COPY . .
 
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright browser
 RUN playwright install chromium
 
 EXPOSE 10000
 
-CMD ["python", "app.py"]
+# 🚀 FIXED: use uvicorn, not python
+CMD ["uvicorn", "app:app", "--host=0.0.0.0", "--port=10000"]
