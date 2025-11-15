@@ -1,71 +1,37 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from playwright.async_api import async_playwright
-import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
-import os
+from pydantic import BaseModel
+import requests
+from bs4 import BeautifulSoup
 
 app = FastAPI()
 
-# FIX CORS COMPLETELY
+# CORS — THIS IS WHAT FIXES THE 405 ERROR
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],     # allow Wix, HF, anywhere
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],     # <-- THIS ALLOWS OPTIONS
     allow_headers=["*"],
 )
 
 class ExtractRequest(BaseModel):
     url: str
 
-# Load readability script
-with open("Readability.js", "r", encoding="utf-8") as f:
-    READABILITY_JS = f.read()
-
-@app.options("/extract")
-async def preflight():
-    return {"status": "ok"}
-
 @app.post("/extract")
-async def extract(payload: ExtractRequest):
+async def extract_text(payload: ExtractRequest):
     url = payload.url
 
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-web-security"]
-        )
-        page = await browser.new_page()
+    try:
+        r = requests.get(url, timeout=12)
+        r.raise_for_status()
+    except Exception as e:
+        return {"error": f"Request failed: {str(e)}"}
 
-        try:
-            await page.goto(url, timeout=60000, wait_until="networkidle")
-        except:
-            await browser.close()
-            return {"error": "Failed to load page"}
+    try:
+        soup = BeautifulSoup(r.text, "html.parser")
+        article = soup.get_text(separator="\n")
+    except Exception as e:
+        return {"error": f"Parsing failed: {str(e)}"}
 
-        # Inject Readability
-        await page.add_script_tag(content=READABILITY_JS)
-
-        article_text = await page.evaluate("""
-            () => {
-                try {
-                    let article = new Readability(document).parse();
-                    return article ? article.textContent : null;
-                } catch (e) {
-                    return null;
-                }
-            }
-        """)
-
-        await browser.close()
-
-        if not article_text:
-            return {"error": "Could not extract text"}
-
-        return {"text": article_text}
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port)
+    return {"text": article}
